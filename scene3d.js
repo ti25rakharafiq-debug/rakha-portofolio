@@ -48,7 +48,7 @@
   /* ------------------------------------------------------------------ */
   const CONFIG = {
     canvasId: 'bg-3d',
-    maxPixelRatio: 1.75,        // batas devicePixelRatio (optimasi HP)
+    maxPixelRatio: 1.5,        // batas devicePixelRatio (optimasi HP)
     applyCanvasStyles: true,    // pasang style fixed + fullscreen + z-index -1 otomatis
     opaqueBackground: true,     // false = latar transparan (dasar laut prosedural disembunyikan)
     fadeInMs: 900,              // durasi fade-in canvas setelah aset siap
@@ -56,7 +56,7 @@
     introDolly: 3.0,            // kamera mulai sejauh ini di belakang posisi awal
 
     imageAspect: 2576 / 1438,   // rasio default gambar (dibaca ulang dari gambar yang dimuat)
-    textureMaxWidth: { desktop: 2048, mobile: 1536 },
+    textureMaxWidth: { desktop: 1600, mobile: 1600 },
 
     /* ---- Kamera & koreografi scroll ---- */
     camera: {
@@ -623,6 +623,12 @@
     } catch (err) {
       console.warn('[scene3d] WebGL tidak tersedia:', err);
       canvas.style.display = 'none';
+      const loader = document.getElementById('sceneLoader');
+      if (loader) {
+        loader.querySelector('.scene-loader-text').textContent = 'Latar 3D tidak tersedia';
+        loader.classList.add('is-error');
+        setTimeout(() => loader.classList.add('is-ready'), 1200);
+      }
       return;
     }
     renderer.setClearColor(new THREE.Color(CONFIG.sea.bottom), CONFIG.opaqueBackground ? 1 : 0);
@@ -1097,6 +1103,12 @@
       if (disposed) return;
       if (successfulCount === 0) {
         console.error('[scene3d] Tidak ada tekstur berhasil dimuat. Periksa seluruh path aset di CONFIG.layers.');
+        const loader = document.getElementById('sceneLoader');
+        if (loader) {
+          loader.querySelector('.scene-loader-text').textContent = 'Gagal memuat latar 3D';
+          loader.classList.add('is-error');
+          setTimeout(() => loader.classList.add('is-ready'), 1200);
+        }
         resolveReady(false);
         return;
       }
@@ -1108,6 +1120,10 @@
       document.documentElement.classList.add('scene3d-ready');
       canvas.style.transition = 'opacity ' + CONFIG.fadeInMs + 'ms ease';
       canvas.style.opacity = '1';
+      const loader = document.getElementById('sceneLoader');
+      if (loader) {
+        requestAnimationFrame(() => loader.classList.add('is-ready'));
+      }
       if (!document.hidden) start();
       try { window.dispatchEvent(new CustomEvent('scene3d:ready')); } catch (e) { /* abaikan */ }
       resolveReady(true);
