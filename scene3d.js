@@ -1,45 +1,4 @@
-/*
- * scene3d.js  |  Three.js r128
- * ---------------------------------------------------------------------------
- * 2.5D / 3D Multi-Layer Parallax Diorama  (gaya Kage - threeui.com)
- *
- * Empat ilustrasi disusun sebagai bidang THREE.PlaneGeometry pada kedalaman
- * sumbu Z yang berbeda. Kamera perspektif bergerak MAJU menembus ruang 3D
- * mengikuti scroll halaman sehingga jarak antar-layer terasa nyata:
- *
- *      Z = -40   layer1-sky.jpg         langit, matahari, awan      (paling jauh)
- *      Z = -25   layer2-torii.jpg       gerbang Torii + pulau karang
- *      Z = -12   layer3-ocean.jpg       gelombang laut
- *      Z =  -4   layer4-foreground.jpg  batu karang + rumput pantai (paling dekat)
- *
- * Kebutuhan HTML:
- *   <canvas id="bg-3d"></canvas>
- *   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
- *   <script src="scene3d.js"></script>      (dimuat SETELAH three.min.js)
- *
- * Kebutuhan berkas (relatif terhadap halaman HTML):
- *   assets/layer1-sky.jpg.jpg   assets/layer2-torii.jpg.jpg
- *   assets/layer3-ocean.jpg.jpg assets/layer4-foreground.jpg.jpg
- *
- * PENTING: buka lewat server lokal (http://localhost/...), BUKAN file://.
- * Browser memblokir tekstur WebGL dari file:// (aturan keamanan CORS).
- * Halaman juga harus bisa di-scroll (tinggi konten > tinggi layar).
- *
- * Teknik utama
- *  - Alpha keying: layer 2-4 berlatar hitam diproses SEKALI saat dimuat
- *    (canvas 2D, di CPU) menjadi tekstur RGBA premultiplied. Area hitam
- *    menjadi 100% transparan tanpa pinggiran abu-abu, bintik noise JPG
- *    dibuang, dan area gelap DI DALAM objek (retakan batu) tetap opak.
- *    Jika canvas ter-taint, otomatis jatuh ke keying luminance di shader.
- *  - Semua layer diselaraskan pada garis horizon dunia yang sama, lalu
- *    parallax terjadi alami dari gerak kamera 3D (bukan trik 2D).
- *  - Animasi: ombak (distorsi UV), rumput (sway berbasis mask warna),
- *    kilau laut, napas cahaya matahari, partikel emas di tiap celah layer.
- *
- * API:  window.Scene3D = { pause, resume, dispose, ready (Promise), config }
- *       Event 'scene3d:ready' dikirim ke window saat aset siap, dan kelas
- *       'scene3d-ready' ditambahkan ke <html> (untuk menyembunyikan loader).
- */
+/* Three.js multi-layer parallax scene. Requires three.js and assets/layer*.jpg. */
 (function () {
   'use strict';
 
@@ -618,7 +577,7 @@
         alpha: true,
         depth: false,
         stencil: false,
-        powerPreference: 'default'
+        powerPreference: 'high-performance'
       });
     } catch (err) {
       console.warn('[scene3d] WebGL tidak tersedia:', err);
@@ -906,6 +865,21 @@
 
     const listeners = [];
     const on = (target, type, fn, opts) => { target.addEventListener(type, fn, opts); listeners.push([target, type, fn, opts]); };
+    const hero = document.getElementById('profil');
+    let heroVisible = !('IntersectionObserver' in window) || !hero;
+    let heroObserver = null;
+    let userPaused = false;
+    if ('IntersectionObserver' in window && hero) {
+      heroObserver = new IntersectionObserver(([entry]) => {
+        heroVisible = entry.isIntersecting && entry.intersectionRatio > 0;
+        if (heroVisible) {
+          if (started && !document.hidden) start();
+        } else {
+          stop();
+        }
+      }, { threshold: 0 });
+      heroObserver.observe(hero);
+    }
 
     on(window, 'pointermove', (e) => { if (e.pointerType !== 'touch') setTarget(e.clientX, e.clientY); }, { passive: true });
     on(window, 'touchstart', (e) => { const t = e.touches[0]; if (t) setTarget(t.clientX, t.clientY); }, { passive: true });
@@ -1052,7 +1026,7 @@
     }
 
     function start() {
-      if (rafId || disposed) return;
+      if (rafId || disposed || userPaused || document.hidden || !heroVisible) return;
       lastT = performance.now();
       rafId = requestAnimationFrame(frame);
     }
@@ -1061,7 +1035,6 @@
       rafId = 0;
     }
 
-    // jeda saat tab tidak aktif
     on(document, 'visibilitychange', () => { if (document.hidden) stop(); else if (started) start(); });
     on(canvas, 'webglcontextlost', (e) => { e.preventDefault(); stop(); });
     on(canvas, 'webglcontextrestored', () => { resize(true); if (started) start(); });
@@ -1132,6 +1105,7 @@
     function dispose() {
       disposed = true;
       stop();
+      if (heroObserver) heroObserver.disconnect();
       listeners.forEach((l) => l[0].removeEventListener(l[1], l[2], l[3]));
       if (ro) ro.disconnect();
       disposables.forEach((t) => t.dispose());
@@ -1141,7 +1115,13 @@
       renderer.dispose();
     }
 
-    window.Scene3D = { pause: stop, resume: () => { if (started) start(); }, dispose: dispose, ready: readyPromise, config: CONFIG };
+    window.Scene3D = {
+      pause: () => { userPaused = true; stop(); },
+      resume: () => { userPaused = false; if (started) start(); },
+      dispose: dispose,
+      ready: readyPromise,
+      config: CONFIG
+    };
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

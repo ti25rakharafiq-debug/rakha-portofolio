@@ -586,9 +586,6 @@ body { background: transparent; }
 .ripple { position: absolute; z-index: 3; border-radius: 50%; width: var(--rs); height: var(--rs); left: var(--rx0); top: var(--ry0); translate: -50% -50%; background: radial-gradient(circle, color-mix(in srgb, var(--text) 42%, transparent), color-mix(in srgb, var(--sky) 26%, transparent) 46%, transparent 70%); pointer-events: none; animation: ripple 0.65s var(--ease-out) forwards; }
 @keyframes ripple { from { scale: 0; opacity: 0.9; } to { scale: 1; opacity: 0; } }
 
-[data-reveal] { opacity: 0; translate: 0 22px; transition: opacity var(--rt, 0.7s) var(--ease-out) var(--rd, 0ms), translate var(--rt, 0.7s) var(--ease-out) var(--rd, 0ms); }
-[data-reveal].is-in { opacity: 1; translate: 0 0; }
-
 .skel { position: relative; }
 .skel::after { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; border-radius: inherit; background: linear-gradient(100deg, transparent 20%, rgba(163, 206, 241, 0.17) 48%, transparent 76%), color-mix(in srgb, var(--card) 92%, transparent); background-size: 220% 100%, 100% 100%; background-position: 160% 0, 0 0; animation: shimmer 1.35s linear infinite; transition: opacity 0.4s; }
 .skel.is-loaded::after { opacity: 0; animation: none; }
@@ -1020,7 +1017,7 @@ dialog.lightbox { background: rgba(14, 21, 38, 0.9); -webkit-backdrop-filter: bl
   .card, .spot, .mx, .cert-card, .site-nav a::after { transition: none; }
 }
 
-/* ===== Scene 3D latar belakang (baseline). Gaya lengkap/penyempurnaan ada di style.css ===== */
+/* Latar belakang 3D. */
 .ocean-bg { z-index: -3; display: none; }
 #bg-3d { position: fixed; inset: 0; z-index: -2; display: block; width: 100%; height: 100%; pointer-events: none; }
 #app-shell { position: relative; z-index: 1; }
@@ -1068,6 +1065,22 @@ dialog.lightbox { background: rgba(14, 21, 38, 0.9); -webkit-backdrop-filter: bl
         <div id="heroMedia" class="hero-media"></div>
       </div>
     </section>
+    <div class="profile-marquee" aria-label="Bidang keahlian">
+      <div class="marquee-track">
+        <div class="marquee-group">
+          <span>INDUSTRIAL ENGINEERING</span><i aria-hidden="true">•</i>
+          <span>SYSTEM ARCHITECT</span><i aria-hidden="true">•</i>
+          <span>AI-AUGMENTED MOBILE APP DEVELOPER</span><i aria-hidden="true">•</i>
+          <span>QUALITY &amp; PROCESS OPTIMIZATION</span><i aria-hidden="true">•</i>
+        </div>
+        <div class="marquee-group" aria-hidden="true">
+          <span>INDUSTRIAL ENGINEERING</span><i>•</i>
+          <span>SYSTEM ARCHITECT</span><i>•</i>
+          <span>AI-AUGMENTED MOBILE APP DEVELOPER</span><i>•</i>
+          <span>QUALITY &amp; PROCESS OPTIMIZATION</span><i>•</i>
+        </div>
+      </div>
+    </div>
 
     <section class="block-section skills-sec" id="keahlian" aria-label="Keahlian">
       <div class="bg-word" data-parallax="0.12" aria-hidden="true">KEAHLIAN</div>
@@ -4098,6 +4111,8 @@ const SKILLS_DATA = [
         const STAGGER = 80;      // jeda ms antar elemen dalam satu gelombang masuk
         const MAX_STEP = 7;
         let io = null;
+        let textIO = null;
+        const TEXT_SEL = '.hero-head > .eyebrow, .hero-head > h1, .hero-head > .affil, .hero-head > .tagline, .story > .story-row > p, .section-head > .eyebrow, .section-head > h2, .section-head > p';
         function kindOf(el) {
             if (el.matches('.card, .spot, .cert-card, .mx'))
                 return 'card';
@@ -4166,6 +4181,32 @@ const SKILLS_DATA = [
             }
             io.observe(el);
         }
+        function scanText() {
+            $$('.hero-head, .section-head, .story').forEach((group) => {
+                const text = $$(TEXT_SEL, group);
+                text.forEach((el, index) => {
+                    if (el.hasAttribute('data-text-reveal'))
+                        return;
+                    el.setAttribute('data-text-reveal', '');
+                    el.style.setProperty('--text-delay', Math.min(index, 5) * 90 + 'ms');
+                    if (!textIO) {
+                        el.classList.add('is-text-in');
+                        return;
+                    }
+                    textIO.observe(el);
+                });
+            });
+        }
+        function onTextIntersect(entries) {
+            entries.forEach((entry) => {
+                const el = entry.target;
+                if (!el.isConnected || (entry.isIntersecting && entry.intersectionRatio >= 0.15)) {
+                    textIO.unobserve(el);
+                    if (el.isConnected)
+                        el.classList.add('is-text-in');
+                }
+            });
+        }
         return {
             init() {
                 if (!('IntersectionObserver' in window) || FX.reduce)
@@ -4174,10 +4215,12 @@ const SKILLS_DATA = [
                 for (let i = 0; i <= 20; i++)
                     steps.push(i / 20);
                 io = new IntersectionObserver(onIntersect, { threshold: steps, rootMargin: '-56px 0px -6% 0px' });
+                textIO = new IntersectionObserver(onTextIntersect, { threshold: 0.15 });
             },
             scan() {
                 $$(SEL).forEach((el) => { if (!el.hasAttribute('data-reveal'))
                     mark(el); });
+                scanText();
                 // urutan keycap di dalam papan skill (untuk jeda berurutan)
                 $$('.key-wrap:not([data-ki])').forEach((k) => {
                     k.setAttribute('data-ki', '');
